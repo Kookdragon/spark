@@ -34,7 +34,8 @@ if should_skip_kinesis_tests:
         "was not set.")
 else:
     kinesis_asl_assembly_jar = search_jar("external/kinesis-asl-assembly",
-                                          "spark-streaming-kinesis-asl-assembly")
+                                          "spark-streaming-kinesis-asl-assembly-",
+                                          "spark-streaming-kinesis-asl-assembly_")
     if kinesis_asl_assembly_jar is None:
         kinesis_requirement_message = (
             "Skipping all Kinesis Python tests as the optional Kinesis project was "
@@ -136,9 +137,9 @@ class PySparkStreamingTestCase(unittest.TestCase):
 
     def _test_func(self, input, func, expected, sort=False, input2=None):
         """
-        @param input: dataset for the test. This should be list of lists.
-        @param func: wrapped function. This function should return PythonDStream object.
-        @param expected: expected output for this testcase.
+        :param input: dataset for the test. This should be list of lists.
+        :param func: wrapped function. This function should return PythonDStream object.
+        :param expected: expected output for this testcase.
         """
         if not isinstance(input[0], RDD):
             input = [self.sc.parallelize(d, 1) for d in input]

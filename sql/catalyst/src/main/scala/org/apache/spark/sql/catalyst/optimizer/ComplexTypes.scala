@@ -17,16 +17,12 @@
 
 package org.apache.spark.sql.catalyst.optimizer
 
-import scala.collection.mutable
-
 import org.apache.spark.sql.catalyst.expressions._
 import org.apache.spark.sql.catalyst.plans.logical.{Aggregate, LogicalPlan}
 import org.apache.spark.sql.catalyst.rules.Rule
-import org.apache.spark.sql.catalyst.util.MapData
-import org.apache.spark.sql.types.MapType
 
 /**
- * Simplify redundant [[CreateNamedStructLike]], [[CreateArray]] and [[CreateMap]] expressions.
+ * Simplify redundant [[CreateNamedStruct]], [[CreateArray]] and [[CreateMap]] expressions.
  */
 object SimplifyExtractValueOps extends Rule[LogicalPlan] {
   override def apply(plan: LogicalPlan): LogicalPlan = plan transform {
@@ -41,8 +37,8 @@ object SimplifyExtractValueOps extends Rule[LogicalPlan] {
     case a: Aggregate => a
     case p => p.transformExpressionsUp {
       // Remove redundant field extraction.
-      case GetStructField(createNamedStructLike: CreateNamedStructLike, ordinal, _) =>
-        createNamedStructLike.valExprs(ordinal)
+      case GetStructField(createNamedStruct: CreateNamedStruct, ordinal, _) =>
+        createNamedStruct.valExprs(ordinal)
 
       // Remove redundant array indexing.
       case GetArrayStructFields(CreateArray(elems), field, ordinal, _, _) =>
@@ -63,16 +59,6 @@ object SimplifyExtractValueOps extends Rule[LogicalPlan] {
           Literal(null, ga.dataType)
         }
       case GetMapValue(CreateMap(elems), key) => CaseKeyWhen(key, elems)
-      // The case below happens when the map is foldable, but the key is not, so ConstantFolding
-      // converts the map in a Literal, but the GetMapValue is still there since the key is not
-      // foldable. It cannot happen in any other case.
-      case GetMapValue(Literal(map: MapData, MapType(kt, vt, _)), key) if !key.foldable =>
-        val elems = new mutable.ListBuffer[Literal]
-        map.foreach(kt, vt, (key, value) => {
-          elems.append(Literal(key, kt))
-          elems.append(Literal(value, vt))
-        })
-        CaseKeyWhen(key, elems.result())
     }
   }
 }

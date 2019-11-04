@@ -27,14 +27,14 @@ import org.apache.spark.sql.catalyst.parser.CatalystSqlParser
 import org.apache.spark.sql.execution.FileSourceScanExec
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.internal.SQLConf
-import org.apache.spark.sql.test.SharedSQLContext
+import org.apache.spark.sql.test.SharedSparkSession
 import org.apache.spark.sql.types.StructType
 
 abstract class SchemaPruningSuite
   extends QueryTest
   with FileBasedDataSourceTest
   with SchemaPruningTest
-  with SharedSQLContext {
+  with SharedSparkSession {
   case class FullName(first: String, middle: String, last: String)
   case class Company(name: String, address: String)
   case class Employer(id: Int, company: Company)
@@ -135,7 +135,7 @@ abstract class SchemaPruningSuite
       Row("X.", 1) :: Row("Y.", 1) :: Row(null, 2) :: Row(null, 2) :: Nil)
   }
 
-  ignore("partial schema intersection - select missing subfield") {
+  testSchemaPruning("partial schema intersection - select missing subfield") {
     val query = sql("select name.middle, address from contacts where p=2")
     checkScan(query, "struct<name:struct<middle:string>,address:string>")
     checkAnswer(query.orderBy("id"),
@@ -269,7 +269,7 @@ abstract class SchemaPruningSuite
     checkAnswer(query, Row("Y.", 1) :: Row("X.", 1) :: Row(null, 2) :: Row(null, 2) :: Nil)
   }
 
-  protected def testSchemaPruning(testName: String)(testThunk: => Unit) {
+  protected def testSchemaPruning(testName: String)(testThunk: => Unit): Unit = {
     test(s"Spark vectorized reader - without partition data column - $testName") {
       withSQLConf(vectorizedReaderEnabledKey -> "true") {
         withContacts(testThunk)
@@ -293,7 +293,7 @@ abstract class SchemaPruningSuite
     }
   }
 
-  private def withContacts(testThunk: => Unit) {
+  private def withContacts(testThunk: => Unit): Unit = {
     withTempPath { dir =>
       val path = dir.getCanonicalPath
 
@@ -315,7 +315,7 @@ abstract class SchemaPruningSuite
     }
   }
 
-  private def withContactsWithDataPartitionColumn(testThunk: => Unit) {
+  private def withContactsWithDataPartitionColumn(testThunk: => Unit): Unit = {
     withTempPath { dir =>
       val path = dir.getCanonicalPath
 
@@ -381,7 +381,7 @@ abstract class SchemaPruningSuite
   // Tests schema pruning for a query whose column and field names are exactly the same as the table
   // schema's column and field names. N.B. this implies that `testThunk` should pass using either a
   // case-sensitive or case-insensitive query parser
-  private def testExactCaseQueryPruning(testName: String)(testThunk: => Unit) {
+  private def testExactCaseQueryPruning(testName: String)(testThunk: => Unit): Unit = {
     test(s"Case-sensitive parser - mixed-case schema - $testName") {
       withSQLConf(SQLConf.CASE_SENSITIVE.key -> "true") {
         withMixedCaseData(testThunk)
@@ -392,7 +392,7 @@ abstract class SchemaPruningSuite
 
   // Tests schema pruning for a query whose column and field names may differ in case from the table
   // schema's column and field names
-  private def testMixedCaseQueryPruning(testName: String)(testThunk: => Unit) {
+  private def testMixedCaseQueryPruning(testName: String)(testThunk: => Unit): Unit = {
     test(s"Case-insensitive parser - mixed-case schema - $testName") {
       withSQLConf(SQLConf.CASE_SENSITIVE.key -> "false") {
         withMixedCaseData(testThunk)
@@ -401,13 +401,13 @@ abstract class SchemaPruningSuite
   }
 
   // Tests given test function with Spark vectorized reader and non-vectorized reader.
-  private def withMixedCaseData(testThunk: => Unit) {
+  private def withMixedCaseData(testThunk: => Unit): Unit = {
     withDataSourceTable(mixedCaseData, "mixedcase") {
       testThunk
     }
   }
 
-  private val schemaEquality = new Equality[StructType] {
+  protected val schemaEquality = new Equality[StructType] {
     override def areEqual(a: StructType, b: Any): Boolean =
       b match {
         case otherType: StructType => a.sameType(otherType)
@@ -422,7 +422,7 @@ abstract class SchemaPruningSuite
     df.collect()
   }
 
-  private def checkScanSchemata(df: DataFrame, expectedSchemaCatalogStrings: String*): Unit = {
+  protected def checkScanSchemata(df: DataFrame, expectedSchemaCatalogStrings: String*): Unit = {
     val fileSourceScanSchemata =
       df.queryExecution.executedPlan.collect {
         case scan: FileSourceScanExec => scan.requiredSchema
